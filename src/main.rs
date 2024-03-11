@@ -1,0 +1,179 @@
+use std::{
+    io::{BufRead, Seek},
+    process,
+};
+
+use once_cell::sync::Lazy; // Import the Lazy type from the once_cell crate
+use regex::Regex;
+
+/**
+cli tool in Rust that matches "tail -f" linux command with the following specifications:
+1. It should show the last X lines of the file (parameter -l)
+2. It should keep listening to the file after displaying the last X lines until Ctrl-C is pressed to exit the program.
+3. It should handle UTF-8, iso-latin-1 and binary files (for FIX summary log files)
+4. It should be able to handle special characters (\x01-\x1f) replacing them by "^A" for "\x01", "^B" for "\x02" and so on and highlight them on output seting the background to white and foreground to black while the normal chars are the inverse of it.
+5. It should be able to receive regex terms from the argument list to highlight in the output rotating the colors of highlight from 1-6 for each term passed as argument.
+*/
+
+// Lazy static to store the regex for special characters
+static SPECIAL_CHARACTERS_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\x01-\x1f]").unwrap());
+
+pub struct TailF {
+    file: String,
+    lines: usize,
+    highlights: Vec<Regex>,
+}
+
+fn main() -> Result<(), String> {
+    let tail_f = TailF::new(&std::env::args().collect())?;
+
+    tail_f.run()?;
+
+    Ok(())
+}
+
+impl TailF {
+    fn new(args: &Vec<String>) -> Result<Self, String> {
+        if args.len() < 2 {
+            return Err(format!("Usage: {} <file> [<lines> [highlight1] [highlight2] ...]", args.len()));
+        }
+
+        let file = &args[1];
+
+        if args.len() == 2 {
+            return Ok(TailF {
+                file: file.to_string(),
+                lines: 10,
+                highlights: vec![],
+            });
+        }
+
+        return Ok(TailF {
+            file: file.to_string(),
+            lines: args[2].parse::<usize>().map_err(|e| e.to_string())?,
+            highlights: args[3..]
+                .iter()
+                .map(|term| Regex::new(term).unwrap())
+                .collect(),
+        });
+    }
+
+    fn run(&self) -> Result<(), String> {
+        let file = std::fs::File::open(&self.file).map_err(|e| e.to_string())?;
+        let mut reader = std::io::BufReader::new(file);
+
+        let mut lines = vec![];
+        let mut line = vec![];
+
+        // add Ctrl-C handler to break the loop
+        ctrlc::set_handler(move || {
+            process::exit(0);
+        })
+        .map_err(|e| e.to_string())?;
+
+        self.get_last_lines(&mut reader, &mut line, &mut lines)?;
+
+        for line in lines.iter() {
+            self.print_line(&line);
+        }
+
+        loop {
+            self.read_line(&mut reader, &mut line, true)?;
+
+            self.print_line(&line);
+
+            line.clear();
+        }
+    }
+
+    fn get_last_lines(
+        &self,
+        reader: &mut std::io::BufReader<std::fs::File>,
+        line: &mut Vec<u8>,
+        lines: &mut Vec<Vec<u8>>,
+    ) -> Result<(), String> {
+        Ok(loop {
+            self.read_line(reader, line, false)?;
+
+            if self.is_at_end_of_file(reader)? {
+                break;
+            }
+
+            lines.push(line.to_vec());
+            if lines.len() > self.lines {
+                lines.remove(0);
+            }
+
+            line.clear();
+        })
+    }
+
+    fn read_line(
+        &self,
+        reader: &mut std::io::BufReader<std::fs::File>,
+        line: &mut Vec<u8>,
+        wait_for_line: bool,
+    ) -> Result<usize, String> {
+        loop {
+            let read = reader.read_until(b'\n', line).map_err(|e| e.to_string())?;
+            if read == 0 && self.is_at_end_of_file(reader)? {
+                if !wait_for_line {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                continue;
+            }
+            if line.last() == Some(&b'\n') {
+                // removes the \n character from the line
+                line.pop();
+                // removes \r if it's the last character
+                if line.last() == Some(&b'\r') {
+                    line.pop();
+                }
+            }
+            break;
+        }
+        Ok(line.len())
+    }
+
+    fn print_line(&self, line: &Vec<u8>) {
+        let line = String::from_utf8_lossy(line);
+        let line = SPECIAL_CHARACTERS_REGEX.replace_all(&line, |c: &regex::Captures| {
+            format!(
+                "\x1b[30;47m^{}\x1b[0m",
+                (c.get(0).unwrap().as_str().as_bytes()[0] + b'A' - 1) as char
+            )
+        });
+
+        let line = self
+            .highlights
+            .iter()
+            .enumerate()
+            .fold(line.to_string(), |line, (i, regex)| {
+                regex
+                    .replace_all(&line, |_c: &regex::Captures| {
+                        format!(
+                            "\x1b[3{};40m{}\x1b[0m",
+                            (i % 6 + 1),
+                            _c.get(0).unwrap().as_str()
+                        )
+                    })
+                    .to_string()
+            });
+
+        println!("{}", line);
+    }
+
+    fn is_at_end_of_file(
+        &self,
+        reader: &mut std::io::BufReader<std::fs::File>,
+    ) -> Result<bool, String> {
+        let curr_position = reader.stream_position().map_err(|e| e.to_string())?;
+        let total_size = reader
+            .get_ref()
+            .metadata()
+            .map_err(|e| e.to_string())?
+            .len();
+        return Ok(curr_position == total_size);
+    }
+}

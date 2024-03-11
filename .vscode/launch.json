@@ -1,0 +1,55 @@
+{
+  // Use o IntelliSense para saber mais sobre os atributos possíveis.
+  // Focalizar para exibir as descrições dos atributos existentes.
+  // Para obter mais informações, acesse: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'hightail'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hightail",
+          "--package=hightail"
+        ],
+        "filter": {
+          "name": "hightail",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "test_files/iso-8859-1.txt",
+        "10",
+        "get_ref",
+        "let",
+        "to_string",
+        "return",
+        "len",
+        "map_err",
+        "\\|e\\|"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'hightail'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=hightail",
+          "--package=hightail"
+        ],
+        "filter": {
+          "name": "hightail",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
