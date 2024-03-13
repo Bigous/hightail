@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     cmake \
     curl \
     lldb \
+    musl-tools \
+    mingw-w64 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
