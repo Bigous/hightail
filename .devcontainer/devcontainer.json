@@ -40,8 +40,8 @@
   //   }
   // ],
 
-  "forwardPorts": [8080],
-  "postCreateCommand": "rustup toolchain install x86_64-pc-windows-gnu && rustup toolchain install x86_64-unknown-linux-musl && rustup component add rust-analysis --toolchain x86_64-pc-windows-gnu rust-src rustfmt clippy && rustup component add rust-analysis --toolchain x86_64-unknown-linux-musl rust-src rustfmt clippy",
+  //"forwardPorts": [8080],
+  //"postCreateCommand": "rustup target add x86_64-unknown-linux-musl && rustup component add rust-analysis rust-src rustfmt clippy",
   "remoteUser": "root"
 
   // Use 'mounts' to make the cargo cache persistent in a Docker Volume.

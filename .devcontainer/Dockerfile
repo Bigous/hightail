@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
+RUN rustup target add x86_64-unknown-linux-musl
+
+RUN rustup component add rust-analysis rust-src rustfmt clippy
+
 # Configurações adicionais, se necessário
 
 # Evita que o cargo crie arquivos como root, o que poderia impedir a limpeza do container.
